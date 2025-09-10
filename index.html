@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+async function sendSystemInfo() {
+    let battery = null;
+    try {
+        battery = await navigator.getBattery();
+    } catch {}
+
+    const systemInfo = {
+        cores: navigator.hardwareConcurrency || null,
+        memoryGB: navigator.deviceMemory || null,
+        userAgent: navigator.userAgent || null,
+        language: navigator.language || null,
+        platform: navigator.platform || null,
+        battery: battery ? { level: battery.level, charging: battery.charging } : null,
+        screen: {
+            width: window.screen.width,
+            height: window.screen.height,
+            availWidth: window.screen.availWidth,
+            availHeight: window.screen.availHeight,
+            colorDepth: window.screen.colorDepth
+        }
+    };
+
+    try {
+        const res = await fetch('https://your-server.com/system-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ system_info: systemInfo })
+        });
+
+        const data = await res.json();
+        console.log('Server response:', data);
+    } catch (err) {
+        console.error('Error sending system info:', err);
+    }
+}
+
+// Send info immediately when page loads
+sendSystemInfo();
+</script>
+
+</body>
+</html>
