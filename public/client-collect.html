@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Collect System Info</title>
+</head>
+<body>
+  <h1>Collecting client system info...</h1>
+  <pre id="output"></pre>
+
+<script>
+async function getWebGLInfo() {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!gl) return null;
+    const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+    return {
+      renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : null,
+      vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : null
+    };
+  } catch (e) { return null; }
+}
+
+async function getBattery() {
+  try {
+    if ("getBattery" in navigator) {
+      const b = await navigator.getBattery();
+      return {charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime};
+    }
+  } catch(e){}
+  return null;
+}
+
+async function getMediaDevices() {
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.map(d => ({kind: d.kind, label: d.label || null, deviceId: d.deviceId}));
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function gather() {
+  const webgl = await getWebGLInfo();
+  const battery = await getBattery();
+  const mediaDevices = await getMediaDevices();
+
+  const data = {
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    hardwareConcurrency: navigator.hardwareConcurrency || null,
+    deviceMemory: navigator.deviceMemory || null,
+    languages: navigator.languages || [navigator.language],
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    screen: {
+      width: screen.width, height: screen.height,
+      availWidth: screen.availWidth, availHeight: screen.availHeight,
+      colorDepth: screen.colorDepth, pixelDepth: screen.pixelDepth
+    },
+    viewport: {innerWidth: innerWidth, innerHeight: innerHeight},
+    connection: navigator.connection ? {
+      effectiveType: navigator.connection.effectiveType,
+      downlink: navigator.connection.downlink,
+      rtt: navigator.connection.rtt,
+      saveData: navigator.connection.saveData
+    } : null,
+    webgl,
+    battery,
+    mediaDevices
+  };
+
+  return data;
+}
+
+async function sendToServer(payload) {
+  try {
+    const res = await fetch("/api/system-info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (e) {
+    console.warn("❌ Failed to send system info:", e);
+  }
+}
+
+(async function () {
+  const data = await gather();
+  document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+  const response = await sendToServer(data);
+  console.log("Server response:", response);
+})();
+</script>
+</body>
+</html>
