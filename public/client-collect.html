@@ -26,34 +26,46 @@ async function getBattery() {
   try {
     if ("getBattery" in navigator) {
       const b = await navigator.getBattery();
-      return {
-        charging: b.charging,
-        level: b.level,
-        chargingTime: b.chargingTime,
-        dischargingTime: b.dischargingTime
-      };
+      return {charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime};
     }
   } catch(e){}
   return null;
 }
 
 async function getMediaDevices() {
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-      // ✅ Request permission first (user will see popup)
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  const devicesInfo = { audio: [], video: [], speaker: [] };
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.map(d => ({
-        kind: d.kind,
-        label: d.label || "Permission not granted",
-        deviceId: d.deviceId
-      }));
-    }
-  } catch(e) {
-    console.warn("Media device access denied:", e);
+  async function fetchDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    devices.forEach(d => {
+      if (d.kind === "audioinput" && d.label) devicesInfo.audio.push(d.label);
+      if (d.kind === "videoinput" && d.label) devicesInfo.video.push(d.label);
+      if (d.kind === "audiooutput" && d.label) devicesInfo.speaker.push(d.label);
+    });
   }
-  return null;
+
+  // Try mic
+  try { await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
+  await fetchDevices();
+
+  // Try camera
+  try { await navigator.mediaDevices.getUserMedia({ video: true }); } catch {}
+  await fetchDevices();
+
+  return devicesInfo;
+}
+
+function detectOS() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+
+  if (/windows phone/i.test(ua)) return "Windows Phone";
+  if (/win/i.test(ua)) return "Windows";
+  if (/android/i.test(ua)) return "Android";
+  if (/iPad|iPhone|iPod/.test(ua)) return "iOS";
+  if (/Macintosh|MacIntel|MacPPC|Mac68K/.test(ua)) return "macOS";
+  if (/Linux/.test(ua)) return "Linux";
+
+  return "Unknown";
 }
 
 async function gather() {
@@ -61,30 +73,24 @@ async function gather() {
   const battery = await getBattery();
   const mediaDevices = await getMediaDevices();
 
-  const logicalCores = navigator.hardwareConcurrency || null;
-
   const data = {
     timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     platform: navigator.platform,
+    os: detectOS(),
     hardware: {
-      logicalCores,
+      logicalCores: navigator.hardwareConcurrency || null,
       deviceMemory: navigator.deviceMemory || null,
-      description: logicalCores 
-        ? `${logicalCores} logical cores (threads)`
-        : "Unknown cores"
+      description: `${navigator.hardwareConcurrency || "?"} logical cores`
     },
     languages: navigator.languages || [navigator.language],
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
     screen: {
-      width: screen.width,
-      height: screen.height,
-      availWidth: screen.availWidth,
-      availHeight: screen.availHeight,
-      colorDepth: screen.colorDepth,
-      pixelDepth: screen.pixelDepth
+      width: screen.width, height: screen.height,
+      availWidth: screen.availWidth, availHeight: screen.availHeight,
+      colorDepth: screen.colorDepth, pixelDepth: screen.pixelDepth
     },
-    viewport: { innerWidth, innerHeight },
+    viewport: {innerWidth: innerWidth, innerHeight: innerHeight},
     connection: navigator.connection ? {
       effectiveType: navigator.connection.effectiveType,
       downlink: navigator.connection.downlink,
