@@ -26,7 +26,12 @@ async function getBattery() {
   try {
     if ("getBattery" in navigator) {
       const b = await navigator.getBattery();
-      return {charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime};
+      return {
+        charging: b.charging,
+        level: b.level,
+        chargingTime: b.chargingTime,
+        dischargingTime: b.dischargingTime
+      };
     }
   } catch(e){}
   return null;
@@ -35,10 +40,19 @@ async function getBattery() {
 async function getMediaDevices() {
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      // ✅ Request permission first (user will see popup)
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
       const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.map(d => ({kind: d.kind, label: d.label || null, deviceId: d.deviceId}));
+      return devices.map(d => ({
+        kind: d.kind,
+        label: d.label || "Permission not granted",
+        deviceId: d.deviceId
+      }));
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn("Media device access denied:", e);
+  }
   return null;
 }
 
@@ -47,20 +61,30 @@ async function gather() {
   const battery = await getBattery();
   const mediaDevices = await getMediaDevices();
 
+  const logicalCores = navigator.hardwareConcurrency || null;
+
   const data = {
     timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     platform: navigator.platform,
-    hardwareConcurrency: navigator.hardwareConcurrency || null,
-    deviceMemory: navigator.deviceMemory || null,
+    hardware: {
+      logicalCores,
+      deviceMemory: navigator.deviceMemory || null,
+      description: logicalCores 
+        ? `${logicalCores} logical cores (threads)`
+        : "Unknown cores"
+    },
     languages: navigator.languages || [navigator.language],
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
     screen: {
-      width: screen.width, height: screen.height,
-      availWidth: screen.availWidth, availHeight: screen.availHeight,
-      colorDepth: screen.colorDepth, pixelDepth: screen.pixelDepth
+      width: screen.width,
+      height: screen.height,
+      availWidth: screen.availWidth,
+      availHeight: screen.availHeight,
+      colorDepth: screen.colorDepth,
+      pixelDepth: screen.pixelDepth
     },
-    viewport: {innerWidth: innerWidth, innerHeight: innerHeight},
+    viewport: { innerWidth, innerHeight },
     connection: navigator.connection ? {
       effectiveType: navigator.connection.effectiveType,
       downlink: navigator.connection.downlink,

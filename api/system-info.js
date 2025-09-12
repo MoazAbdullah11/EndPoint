@@ -1,24 +1,38 @@
-// api/system-info.js
+import si from "systeminformation";
 
 export default async function handler(req, res) {
   if (req.method === "POST") {
-    // Parse incoming JSON
-    let body = {};
     try {
-      body = req.body;
-    } catch (e) {
-      return res.status(400).json({ error: "Invalid JSON" });
+      // client payload
+      const clientData = req.body;
+
+      // server CPU details
+      const cpu = await si.cpu();
+      const cpuDetails = {
+        manufacturer: cpu.manufacturer,
+        brand: cpu.brand,
+        vendor: cpu.vendor,
+        family: cpu.family,
+        cores: cpu.cores,
+        physicalCores: cpu.physicalCores,
+        performanceCores: cpu.performanceCores,
+        efficiencyCores: cpu.efficiencyCores,
+        speed: cpu.speed + "GHz",
+        speedMin: cpu.speedMin + "GHz",
+        speedMax: cpu.speedMax + "GHz",
+        cache: cpu.cache
+      };
+
+      const finalData = {
+        ...clientData,
+        cpu: cpuDetails, // 🔥 add core details
+      };
+
+      res.status(200).json({ success: true, data: finalData });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
     }
-
-    console.log("✅ Received system info:", body);
-
-    // In real project, save to DB (MongoDB, MySQL, etc.)
-    return res.status(200).json({
-      status: "ok",
-      receivedAt: new Date().toISOString(),
-    });
+  } else {
+    res.status(405).json({ error: "Method not allowed" });
   }
-
-  // If not POST
-  res.status(405).json({ error: "Method not allowed" });
 }
